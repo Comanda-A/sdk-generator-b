@@ -154,19 +154,32 @@ namespace AppwriteTests
             client.SetEndPointRealtime("wss://cloud.appwrite.io/v1");
             var realtime = new Realtime(client);
             
-            var subscription = realtime.Subscribe<object>(new string[] { "tests" }, (eventData) => 
+            bool messageReceived = false;
+            var subscription = realtime.Subscribe<Dictionary<string, object>>(new string[] { "tests" }, (eventData) => 
             {
-                Debug.Log(eventData.Payload);
+                if (eventData.Payload != null && eventData.Payload.ContainsKey("response"))
+                {
+                    Debug.Log(eventData.Payload["response"]);
+                }
+                messageReceived = true;
+                subscription.Close();
             });
             
             // Connect to realtime
             await realtime.Connect();
             
-            // Wait a bit for connection
-            await Task.Delay(5000);
+            // Wait for message or timeout
+            int timeout = 0;
+            while (!messageReceived && timeout < 50) // 5 seconds timeout
+            {
+                await Task.Delay(100);
+                timeout++;
+            }
             
-            // Realtime success message
-            Debug.Log("WS:/v1/realtime:passed");
+            if (!messageReceived)
+            {
+                Debug.Log("No realtime message received within timeout");
+            }
 
             // Cookie tests
             mock = await general.SetCookie();
