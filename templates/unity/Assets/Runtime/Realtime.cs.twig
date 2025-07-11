@@ -56,6 +56,7 @@ namespace {{ spec.title | caseUcfirst }}
         private CancellationTokenSource _cancellationTokenSource;
         private bool _creatingSocket = false;
         private string _lastUrl;
+        private CancellationTokenSource _heartbeatTokenSource;
 
         public bool IsConnected => _webSocket?.State == WebSocketState.Open;
         public event Action OnConnected;
@@ -177,6 +178,7 @@ namespace {{ spec.title | caseUcfirst }}
         {
             _reconnectAttempts = 0;
             OnConnected?.Invoke();
+            StartHeartbeat();
             Debug.Log($"Connected to realtime: {_lastUrl}");
         }
 
@@ -227,6 +229,9 @@ namespace {{ spec.title | caseUcfirst }}
                     SendFallbackAuthentication();
                 }
             }
+            
+            // Start heartbeat after successful connection (moved from OnWebSocketOpen)
+            // StartHeartbeat(); // Already called in OnWebSocketOpen
         }
 
         private void SendFallbackAuthentication()
@@ -309,11 +314,51 @@ namespace {{ spec.title | caseUcfirst }}
 
         private void OnWebSocketClose(WebSocketCloseCode closeCode)
         {
+            StopHeartbeat();
             OnDisconnected?.Invoke();
             if (_reconnect && closeCode != WebSocketCloseCode.PolicyViolation)
             {
                 Retry();
             }
+        }
+
+        private void StartHeartbeat()
+        {
+            StopHeartbeat();
+            _heartbeatTokenSource = new CancellationTokenSource();
+            
+            UniTask.Create(async () =>
+            {
+                try
+                {
+                    while (!_heartbeatTokenSource.Token.IsCancellationRequested && _webSocket?.State == WebSocketState.Open)
+                    {
+                        await UniTask.Delay(TimeSpan.FromSeconds(20), cancellationToken: _heartbeatTokenSource.Token);
+                        
+                        if (_webSocket?.State == WebSocketState.Open && !_heartbeatTokenSource.Token.IsCancellationRequested)
+                        {
+                            var pingMessage = new { type = "ping" };
+                            var json = JsonSerializer.Serialize(pingMessage, Client.SerializerOptions);
+                            _webSocket.SendText(json);
+                        }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected when cancellation is requested
+                }
+                catch (Exception ex)
+                {
+                    OnError?.Invoke(ex);
+                }
+            });
+        }
+
+        private void StopHeartbeat()
+        {
+            _heartbeatTokenSource?.Cancel();
+            _heartbeatTokenSource?.Dispose();
+            _heartbeatTokenSource = null;
         }
 
         private void Retry()
@@ -348,14 +393,20 @@ namespace {{ spec.title | caseUcfirst }}
             }
 
             var project = _client.Config.TryGetValue("project", out var proj) ? proj : "";
-            var channelsQuery = string.Join("&", _channels.Select(c => $"channels[]={c}"));
             
-            return $"{realtimeEndpoint}/realtime?project={project}&{channelsQuery}";
+            // Format channels as separate query parameters like Flutter does
+            var channelParams = string.Join("&", _channels.Select(c => $"channels[]={Uri.EscapeDataString(c)}"));
+            
+            var uri = new Uri(realtimeEndpoint);
+            var realtimePath = uri.AbsolutePath.TrimEnd('/') + "/realtime";
+            
+            return $"{uri.Scheme}://{uri.Host}:{uri.Port}{realtimePath}?project={Uri.EscapeDataString(project)}&{channelParams}";
         }
 
         private async UniTask CloseConnection()
         {
             _reconnect = false;
+            StopHeartbeat();
             _cancellationTokenSource?.Cancel();
             
             if (_webSocket != null)
@@ -373,6 +424,14 @@ namespace {{ spec.title | caseUcfirst }}
         public async UniTask Disconnect()
         {
             await CloseConnection();
+        }
+        
+        /// <summary>
+        /// Dispose method for proper cleanup
+        /// </summary>
+        public void Dispose()
+        {
+            UniTask.Create(async () => await Disconnect()).Forget();
         }
     }
 }
