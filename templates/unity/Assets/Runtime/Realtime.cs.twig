@@ -178,36 +178,6 @@ namespace {{ spec.title | caseUcfirst }}
             _reconnectAttempts = 0;
             OnConnected?.Invoke();
             Debug.Log($"Connected to realtime: {_lastUrl}");
-
-            // For testing purposes, simulate a test response
-            if (_channels.Contains("tests"))
-            {
-                SimulateTestResponse();
-            }
-        }
-
-        private void SimulateTestResponse()
-        {
-            UniTask.Create(async () =>
-            {
-                await UniTask.Delay(100); // Small delay to simulate real response
-                
-                var testEvent = new RealtimeResponseEvent<Dictionary<string, object>>
-                {
-                    Events = new[] { "test" },
-                    Channels = new[] { "tests" },
-                    Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                    Payload = new Dictionary<string, object> { { "response", "WS:/v1/realtime:passed" } }
-                };
-
-                foreach (var subscription in _subscriptions.Values)
-                {
-                    if (subscription.Channels.Contains("tests"))
-                    {
-                        subscription.OnMessage?.Invoke(testEvent);
-                    }
-                }
-            });
         }
 
         private void OnWebSocketMessage(byte[] data)
@@ -310,7 +280,9 @@ namespace {{ spec.title | caseUcfirst }}
                         Payload = payload
                     };
 
-                    foreach (var subscription in _subscriptions.Values)
+                    // Create a copy of subscriptions to avoid collection modification issues
+                    var subscriptionsCopy = _subscriptions.Values.ToArray();
+                    foreach (var subscription in subscriptionsCopy)
                     {
                         foreach (var channel in channels)
                         {
