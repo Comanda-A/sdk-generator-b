@@ -179,7 +179,7 @@ namespace {{ spec.title | caseUcfirst }}
             _reconnectAttempts = 0;
             OnConnected?.Invoke();
             StartHeartbeat();
-            Debug.Log($"Connected to realtime: {_lastUrl}");
+            // Debug.Log($"Connected to realtime: {_lastUrl}"); // Remove debug log to reduce noise
         }
 
         private void OnWebSocketMessage(byte[] data)
@@ -187,11 +187,13 @@ namespace {{ spec.title | caseUcfirst }}
             try
             {
                 var message = Encoding.UTF8.GetString(data);
+                Debug.Log($"[Realtime] Raw message: {message}"); // Debug incoming messages
                 var response = JsonSerializer.Deserialize<Dictionary<string, object>>(message, Client.DeserializerOptions);
                 
                 if (response.TryGetValue("type", out var typeObj))
                 {
                     var messageType = typeObj?.ToString();
+                    Debug.Log($"[Realtime] Message type: {messageType}"); // Debug message type
                     
                     switch (messageType)
                     {
@@ -205,7 +207,7 @@ namespace {{ spec.title | caseUcfirst }}
                             HandleErrorMessage(response);
                             break;
                         case "pong":
-                            Debug.Log("Received heartbeat response from realtime server");
+                            // Debug.Log("Received heartbeat response from realtime server"); // Remove debug log
                             break;
                     }
                 }
@@ -400,7 +402,14 @@ namespace {{ spec.title | caseUcfirst }}
             var uri = new Uri(realtimeEndpoint);
             var realtimePath = uri.AbsolutePath.TrimEnd('/') + "/realtime";
             
-            return $"{uri.Scheme}://{uri.Host}:{uri.Port}{realtimePath}?project={Uri.EscapeDataString(project)}&{channelParams}";
+            // Don't manually add port - let Uri handle it like Flutter does
+            var baseUrl = $"{uri.Scheme}://{uri.Host}";
+            if ((uri.Scheme == "wss" && uri.Port != 443) || (uri.Scheme == "ws" && uri.Port != 80))
+            {
+                baseUrl += $":{uri.Port}";
+            }
+            
+            return $"{baseUrl}{realtimePath}?project={Uri.EscapeDataString(project)}&{channelParams}";
         }
 
         private async UniTask CloseConnection()
