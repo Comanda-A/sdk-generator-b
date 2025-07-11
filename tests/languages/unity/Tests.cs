@@ -1,4 +1,3 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -11,7 +10,7 @@ using Appwrite.Models;
 using Appwrite.Enums;
 using Appwrite.Services;
 using NUnit.Framework;
-using Console = System.Console;
+
 namespace AppwriteTests
 {
     public class Tests
@@ -46,6 +45,21 @@ namespace AppwriteTests
             var foo = new Foo(client);
             var bar = new Bar(client);
             var general = new General(client);
+
+            client.SetProject("console");
+            client.SetEndPointRealtime("wss://cloud.appwrite.io/v1");
+            
+            var realtime = new Realtime(client);
+            string realtimeResponse = "No realtime message received within timeout";
+            int subscriptionId = 0;
+            subscriptionId = realtime.Subscribe<Dictionary<string, object>>(new string[] { "tests" }, (eventData) => 
+            {
+                if (eventData.Payload != null && eventData.Payload.ContainsKey("response"))
+                {
+                    realtimeResponse = eventData.Payload["response"].ToString();
+                }
+                realtime.Unsubscribe(subscriptionId);
+            });
 
             // Ping test
             client.SetProject("123456");
@@ -150,37 +164,8 @@ namespace AppwriteTests
 
             await general.Empty();
 
-            // Realtime test
-            client.SetEndPointRealtime("wss://cloud.appwrite.io/v1");
-            var realtime = new Realtime(client);
-            
-            bool messageReceived = false;
-            int subscriptionId = 0;
-            subscriptionId = realtime.Subscribe<Dictionary<string, object>>(new string[] { "tests" }, (eventData) => 
-            {
-                if (eventData.Payload != null && eventData.Payload.ContainsKey("response"))
-                {
-                    Debug.Log(eventData.Payload["response"]);
-                }
-                messageReceived = true;
-                realtime.Unsubscribe(subscriptionId);
-            });
-            
-            // Connect to realtime
-            await realtime.Connect();
-            
-            // Wait for message or timeout
-            int timeout = 0;
-            while (!messageReceived && timeout < 50) // 5 seconds timeout
-            {
-                await Task.Delay(100);
-                timeout++;
-            }
-            
-            if (!messageReceived)
-            {
-                Debug.Log("No realtime message received within timeout");
-            }
+            await Task.Delay(5000);
+            Debug.Log(realtimeResponse);
 
             // Cookie tests
             mock = await general.SetCookie();
