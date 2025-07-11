@@ -76,6 +76,8 @@ namespace {{ spec.title | caseUcfirst }}
         /// </summary>
         public RealtimeSubscription Subscribe(string[] channels, Action<RealtimeResponseEvent<Dictionary<string, object>>> callback)
         {
+            Debug.Log($"[Realtime] Subscribe called for channels: [{string.Join(", ", channels)}]");
+            
             var subscriptionId = ++_subscriptionCounter;
             var subscription = new RealtimeSubscription
             {
@@ -92,6 +94,8 @@ namespace {{ spec.title | caseUcfirst }}
                 _channels.Add(channel);
             }
 
+            Debug.Log($"[Realtime] Total channels now: {_channels.Count}");
+            
             // Create socket if needed
             CreateSocket().Forget();
 
@@ -127,10 +131,13 @@ namespace {{ spec.title | caseUcfirst }}
         {
             if (_creatingSocket || _channels.Count == 0) return;
             _creatingSocket = true;
+            
+            Debug.Log($"[Realtime] Creating socket for {_channels.Count} channels");
 
             try
             {
                 var uri = PrepareUri();
+                Debug.Log($"[Realtime] Connecting to URI: {uri}");
                 
                 if (_webSocket == null || _webSocket.State == WebSocketState.Closed)
                 {
@@ -148,15 +155,19 @@ namespace {{ spec.title | caseUcfirst }}
 
                 if (_webSocket.State == WebSocketState.Connecting || _webSocket.State == WebSocketState.Open)
                 {
+                    Debug.Log($"[Realtime] Socket already connecting/connected: {_webSocket.State}");
                     _creatingSocket = false;
                     return;
                 }
 
+                Debug.Log("[Realtime] Attempting to connect...");
                 await _webSocket.Connect();
+                Debug.Log("[Realtime] Connect call completed");
                 _reconnectAttempts = 0;
             }
             catch (Exception ex)
             {
+                Debug.LogError($"[Realtime] Connection failed: {ex.Message}");
                 OnError?.Invoke(ex);
                 Retry();
             }
@@ -179,7 +190,7 @@ namespace {{ spec.title | caseUcfirst }}
             _reconnectAttempts = 0;
             OnConnected?.Invoke();
             StartHeartbeat();
-            // Debug.Log($"Connected to realtime: {_lastUrl}"); // Remove debug log to reduce noise
+            Debug.Log($"[Realtime] WebSocket opened successfully: {_lastUrl}");
         }
 
         private void OnWebSocketMessage(byte[] data)
@@ -310,12 +321,14 @@ namespace {{ spec.title | caseUcfirst }}
 
         private void OnWebSocketError(string error)
         {
+            Debug.LogError($"[Realtime] WebSocket error: {error}");
             OnError?.Invoke(new {{ spec.title | caseUcfirst }}Exception($"WebSocket error: {error}"));
             Retry();
         }
 
         private void OnWebSocketClose(WebSocketCloseCode closeCode)
         {
+            Debug.Log($"[Realtime] WebSocket closed with code: {closeCode}");
             StopHeartbeat();
             OnDisconnected?.Invoke();
             if (_reconnect && closeCode != WebSocketCloseCode.PolicyViolation)

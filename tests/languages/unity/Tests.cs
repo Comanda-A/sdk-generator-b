@@ -61,6 +61,8 @@ namespace AppwriteTests
                 subscription?.Close();
             });
 
+            await Task.Delay(5000);
+
             // Ping test
             client.SetProject("123456");
             var ping = await client.Ping();
