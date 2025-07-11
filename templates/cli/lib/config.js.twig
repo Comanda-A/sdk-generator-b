@@ -35,7 +35,9 @@ const KeysAttributes = new Set([
     "side",
     // Indexes
     "attributes",
-    "orders"
+    "orders",
+    // Strings
+    "encrypt",
 ]);
 const KeyIndexes = new Set(["key", "type", "status", "attributes", "orders"]);
 
@@ -148,6 +150,14 @@ class Local extends Config {
 
     getDirname() {
         return _path.dirname(this.path)
+    }
+
+    getEndpoint() {
+        return this.get('endpoint') || '';
+    }
+
+    setEndpoint(endpoint) {
+        this.set('endpoint', endpoint);
     }
 
     getSites() {
