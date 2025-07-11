@@ -89,6 +89,18 @@ jobs:
       - name: Run Tests
         run: |
           composer test tests/${{ matrix.sdk }}Test.php
+          
+      - name: Upload Unity Artifacts
+        if: always() && matrix.sdk == 'Unity2021'
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-artifacts-matrix-${{ github.run_id }}
+          path: |
+            /tmp/unity_test*.log
+            Unity_lic.ulf
+            tests/sdks/unity/
+            !tests/sdks/unity/Library/
+          retention-days: 2
 
   lint:
     runs-on: ubuntu-latest
