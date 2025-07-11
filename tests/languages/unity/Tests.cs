@@ -57,9 +57,11 @@ namespace AppwriteTests
                 if (eventData.Payload != null && eventData.Payload.TryGetValue("response", out var value))
                 {
                     realtimeResponse = value.ToString();
+                    Debug.Log(realtimeResponse);
                 }
                 subscription?.Close();
             });
+            await Task.Delay(5000);
 
             // Ping test
             client.SetProject("123456");
@@ -164,8 +166,10 @@ namespace AppwriteTests
 
             await general.Empty();
 
-            await Task.Delay(5000);
-            Debug.Log(realtimeResponse);
+            // Wait for realtime message at the end like Flutter does
+            await Task.Delay(5000); // Give time for realtime message to arrive
+            // Don't print realtimeResponse here since it's printed immediately when received
+            //Debug.Log(realtimeResponse);
 
             // Cookie tests
             mock = await general.SetCookie();
