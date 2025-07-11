@@ -50,15 +50,15 @@ namespace AppwriteTests
             client.SetEndPointRealtime("wss://cloud.appwrite.io/v1");
             
             var realtime = new Realtime(client);
-            string realtimeResponse = "No realtime message received within timeout";
-            int subscriptionId = 0;
-            subscriptionId = realtime.Subscribe<Dictionary<string, object>>(new string[] { "tests" }, (eventData) => 
+            string realtimeResponse = "No realtime message received within timeout";            
+            RealtimeSubscription subscription = null;
+            subscription = realtime.Subscribe(new string[] { "tests" }, (eventData) => 
             {
-                if (eventData.Payload != null && eventData.Payload.ContainsKey("response"))
+                if (eventData.Payload != null && eventData.Payload.TryGetValue("response", out var value))
                 {
-                    realtimeResponse = eventData.Payload["response"].ToString();
+                    realtimeResponse = value.ToString();
                 }
-                realtime.Unsubscribe(subscriptionId);
+                subscription?.Close();
             });
 
             // Ping test
