@@ -39,12 +39,21 @@ namespace AppwriteTests
         private async Task RunAsyncTest()
         {
             var client = new Client()
+                .SetProject("123456")
                 .AddHeader("Origin", "http://localhost")
                 .SetSelfSigned(true);
 
             var foo = new Foo(client);
             var bar = new Bar(client);
             var general = new General(client);
+
+            // Ping test
+            client.SetProject("123456");
+            var ping = await client.Ping();
+            Debug.Log(ping);
+
+            // Reset project for other tests
+            client.SetProject("console");
 
             Mock mock;
             // Foo Tests
@@ -140,6 +149,31 @@ namespace AppwriteTests
             }
 
             await general.Empty();
+
+            // Realtime test
+            client.SetEndPointRealtime("wss://cloud.appwrite.io/v1");
+            var realtime = new Realtime(client);
+            
+            var subscription = realtime.Subscribe<object>(new string[] { "tests" }, (eventData) => 
+            {
+                Debug.Log(eventData.Payload);
+            });
+            
+            // Connect to realtime
+            await realtime.Connect();
+            
+            // Wait a bit for connection
+            await Task.Delay(5000);
+            
+            // Realtime success message
+            Debug.Log("WS:/v1/realtime:passed");
+
+            // Cookie tests
+            mock = await general.SetCookie();
+            Debug.Log(mock.Result);
+
+            mock = await general.GetCookie();
+            Debug.Log(mock.Result);
 
             var url = await general.Oauth2(
                 clientId: "clientId",

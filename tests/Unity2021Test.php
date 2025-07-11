@@ -28,12 +28,15 @@ class Unity2021Test extends Base
     }
 
     protected array $expectedOutput = [
+        ...Base::PING_RESPONSE,
         ...Base::FOO_RESPONSES,
         ...Base::BAR_RESPONSES,
         ...Base::GENERAL_RESPONSES,
         ...Base::UPLOAD_RESPONSES,
         ...Base::ENUM_RESPONSES,
         ...Base::EXCEPTION_RESPONSES,
+        ...Base::REALTIME_RESPONSES,
+        ...Base::COOKIE_RESPONSES,
         ...Base::OAUTH_RESPONSES,
         ...Base::QUERY_HELPER_RESPONSES,
         ...Base::PERMISSION_HELPER_RESPONSES,
