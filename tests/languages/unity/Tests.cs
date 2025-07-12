@@ -60,9 +60,16 @@ namespace AppwriteTests
             RealtimeSubscription subscription = null;
             subscription = realtime.Subscribe(new string[] { "tests" }, (eventData) => 
             {
+                Debug.Log($"[Test] Realtime callback invoked! Payload count: {eventData.Payload?.Count}");
                 if (eventData.Payload != null && eventData.Payload.TryGetValue("response", out var value))
                 {
+                    Debug.Log($"[Test] Found response value: {value}");
                     realtimeResponse = value.ToString();
+                    Debug.Log($"[Test] Updated realtimeResponse to: {realtimeResponse}");
+                }
+                else
+                {
+                    Debug.Log("[Test] No 'response' key found in payload");
                 }
                 subscription?.Close();
             });

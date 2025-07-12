@@ -328,16 +328,20 @@ namespace {{ spec.title | caseUcfirst }}
         {
             try
             {
-                if (response.TryGetValue("data", out var dataObj) && dataObj is Dictionary<string, object> data)
+                if (response.TryGetValue("data", out var dataObj) && dataObj is JsonElement dataElement)
                 {
-                    var channels = data.TryGetValue("channels", out var channelsObj) ? 
-                        JsonSerializer.Deserialize<string[]>(channelsObj.ToString()) : new string[0];
-                    var events = data.TryGetValue("events", out var eventsObj) ? 
-                        JsonSerializer.Deserialize<string[]>(eventsObj.ToString()) : new string[0];
+                    var data = JsonSerializer.Deserialize<Dictionary<string, object>>(dataElement.GetRawText(), Client.DeserializerOptions);
+                    
+                    var channels = data.TryGetValue("channels", out var channelsObj) && channelsObj is JsonElement channelsElement ? 
+                        JsonSerializer.Deserialize<string[]>(channelsElement.GetRawText()) : new string[0];
+                    var events = data.TryGetValue("events", out var eventsObj) && eventsObj is JsonElement eventsElement ? 
+                        JsonSerializer.Deserialize<string[]>(eventsElement.GetRawText()) : new string[0];
                     var timestamp = data.TryGetValue("timestamp", out var timestampObj) ? 
-                        Convert.ToInt64(timestampObj) : 0;
-                    var payload = data.TryGetValue("payload", out var payloadObj) ? 
-                        JsonSerializer.Deserialize<Dictionary<string, object>>(payloadObj.ToString()) : new Dictionary<string, object>();
+                        Convert.ToInt64(timestampObj.ToString()) : 0;
+                    var payload = data.TryGetValue("payload", out var payloadObj) && payloadObj is JsonElement payloadElement ? 
+                        JsonSerializer.Deserialize<Dictionary<string, object>>(payloadElement.GetRawText(), Client.DeserializerOptions) : new Dictionary<string, object>();
+
+                    Debug.Log($"[Realtime] Parsed payload: {JsonSerializer.Serialize(payload)}");
 
                     var eventResponse = new RealtimeResponseEvent<Dictionary<string, object>>
                     {
@@ -355,6 +359,7 @@ namespace {{ spec.title | caseUcfirst }}
                         {
                             if (subscription.Channels.Contains(channel))
                             {
+                                Debug.Log($"[Realtime] Invoking callback for channel: {channel}");
                                 subscription.OnMessage?.Invoke(eventResponse);
                                 break;
                             }
@@ -364,6 +369,7 @@ namespace {{ spec.title | caseUcfirst }}
             }
             catch (Exception ex)
             {
+                Debug.LogError($"[Realtime] HandleRealtimeEvent error: {ex.Message}");
                 OnError?.Invoke(ex);
             }
         }
