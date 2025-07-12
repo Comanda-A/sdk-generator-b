@@ -379,13 +379,53 @@ namespace {{ spec.title | caseUcfirst }}
                     }
                     
                     var channels = data.TryGetValue("channels", out var channelsObj) && channelsObj is JsonElement channelsElement ? 
-                        JsonSerializer.Deserialize<string[]>(channelsElement.GetRawText()) : new string[0];
+                        JsonSerializer.Deserialize<string[]>(channelsElement.GetRawText()) : 
+                        (channelsObj is string[] channelsArray ? channelsArray : new string[0]);
                     var events = data.TryGetValue("events", out var eventsObj) && eventsObj is JsonElement eventsElement ? 
-                        JsonSerializer.Deserialize<string[]>(eventsElement.GetRawText()) : new string[0];
-                    var timestamp = data.TryGetValue("timestamp", out var timestampObj) ? 
-                        Convert.ToInt64(timestampObj.ToString()) : 0;
+                        JsonSerializer.Deserialize<string[]>(eventsElement.GetRawText()) : 
+                        (eventsObj is string[] eventsArray ? eventsArray : new string[0]);
+                    
+                    // Timestamp can be either a string (ISO format) or a number
+                    long timestamp = 0;
+                    if (data.TryGetValue("timestamp", out var timestampObj))
+                    {
+                        if (timestampObj is string timestampStr)
+                        {
+                            if (DateTime.TryParse(timestampStr, out var dt))
+                            {
+                                timestamp = ((DateTimeOffset)dt).ToUnixTimeMilliseconds();
+                            }
+                        }
+                        else if (timestampObj is JsonElement timestampElement)
+                        {
+                            if (timestampElement.ValueKind == JsonValueKind.String)
+                            {
+                                if (DateTime.TryParse(timestampElement.GetString(), out var dt))
+                                {
+                                    timestamp = ((DateTimeOffset)dt).ToUnixTimeMilliseconds();
+                                }
+                            }
+                            else if (timestampElement.ValueKind == JsonValueKind.Number)
+                            {
+                                timestamp = timestampElement.GetInt64();
+                            }
+                        }
+                        else
+                        {
+                            try
+                            {
+                                timestamp = Convert.ToInt64(timestampObj);
+                            }
+                            catch
+                            {
+                                // If conversion fails, keep timestamp as 0
+                            }
+                        }
+                    }
+                    
                     var payload = data.TryGetValue("payload", out var payloadObj) && payloadObj is JsonElement payloadElement ? 
-                        JsonSerializer.Deserialize<Dictionary<string, object>>(payloadElement.GetRawText(), Client.DeserializerOptions) : new Dictionary<string, object>();
+                        JsonSerializer.Deserialize<Dictionary<string, object>>(payloadElement.GetRawText(), Client.DeserializerOptions) : 
+                        (payloadObj is Dictionary<string, object> payloadDict ? payloadDict : new Dictionary<string, object>());
 
                     Debug.Log($"[Realtime] Parsed channels: [{string.Join(", ", channels)}]");
                     Debug.Log($"[Realtime] Parsed events: [{string.Join(", ", events)}]");
