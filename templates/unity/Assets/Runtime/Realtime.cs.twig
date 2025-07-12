@@ -191,6 +191,19 @@ namespace {{ spec.title | caseUcfirst }}
             OnConnected?.Invoke();
             StartHeartbeat();
             Debug.Log($"[Realtime] WebSocket opened successfully: {_lastUrl}");
+            
+            // Send a test ping immediately to check if we can send/receive
+            try
+            {
+                var testPing = new { type = "ping" };
+                var json = JsonSerializer.Serialize(testPing, Client.SerializerOptions);
+                _webSocket.SendText(json);
+                Debug.Log("[Realtime] Sent test ping immediately after connection");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[Realtime] Failed to send test ping: {ex.Message}");
+            }
         }
 
         private void OnWebSocketMessage(byte[] data)
@@ -199,7 +212,17 @@ namespace {{ spec.title | caseUcfirst }}
             {
                 var message = Encoding.UTF8.GetString(data);
                 Debug.Log($"[Realtime] Raw message: {message}"); // Debug incoming messages
-                var response = JsonSerializer.Deserialize<Dictionary<string, object>>(message, Client.DeserializerOptions);
+                
+                Dictionary<string, object> response;
+                try
+                {
+                    response = JsonSerializer.Deserialize<Dictionary<string, object>>(message, Client.DeserializerOptions);
+                }
+                catch (Exception jsonEx)
+                {
+                    Debug.LogError($"[Realtime] JSON deserialization failed: {jsonEx.Message}");
+                    return;
+                }
                 
                 if (response.TryGetValue("type", out var typeObj))
                 {
@@ -218,27 +241,40 @@ namespace {{ spec.title | caseUcfirst }}
                             HandleErrorMessage(response);
                             break;
                         case "pong":
-                            // Debug.Log("Received heartbeat response from realtime server"); // Remove debug log
+                            Debug.Log("[Realtime] Received pong");
+                            break;
+                        default:
+                            Debug.Log($"[Realtime] Unknown message type: {messageType}");
                             break;
                     }
+                }
+                else
+                {
+                    Debug.LogWarning("[Realtime] Message has no 'type' field");
                 }
             }
             catch (Exception ex)
             {
+                Debug.LogError($"[Realtime] Message processing failed: {ex.Message}");
                 OnError?.Invoke(ex);
             }
         }
 
         private void HandleConnectedMessage(Dictionary<string, object> response)
         {
+            Debug.Log("[Realtime] Received 'connected' message");
+            
             // Handle authentication if no user is present
             if (response.TryGetValue("data", out var dataObj) && dataObj is Dictionary<string, object> data)
             {
                 var hasUser = data.TryGetValue("user", out var userObj) && 
                              userObj is Dictionary<string, object> user && user.Count > 0;
                              
+                Debug.Log($"[Realtime] Has user: {hasUser}");
+                             
                 if (!hasUser)
                 {
+                    Debug.Log("[Realtime] No user found, sending fallback authentication");
                     SendFallbackAuthentication();
                 }
             }
