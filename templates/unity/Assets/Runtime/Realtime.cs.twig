@@ -378,12 +378,65 @@ namespace {{ spec.title | caseUcfirst }}
                         return;
                     }
                     
-                    var channels = data.TryGetValue("channels", out var channelsObj) && channelsObj is JsonElement channelsElement ? 
-                        JsonSerializer.Deserialize<string[]>(channelsElement.GetRawText()) : 
-                        (channelsObj is string[] channelsArray ? channelsArray : new string[0]);
-                    var events = data.TryGetValue("events", out var eventsObj) && eventsObj is JsonElement eventsElement ? 
-                        JsonSerializer.Deserialize<string[]>(eventsElement.GetRawText()) : 
-                        (eventsObj is string[] eventsArray ? eventsArray : new string[0]);
+                    string[] channels;
+                    if (data.TryGetValue("channels", out var channelsObj))
+                    {
+                        if (channelsObj is JsonElement channelsElement)
+                        {
+                            channels = JsonSerializer.Deserialize<string[]>(channelsElement.GetRawText());
+                        }
+                        else if (channelsObj is string[] channelsArray)
+                        {
+                            channels = channelsArray;
+                        }
+                        else
+                        {
+                            // Try to parse as JSON array from object
+                            try
+                            {
+                                var channelsJson = JsonSerializer.Serialize(channelsObj);
+                                channels = JsonSerializer.Deserialize<string[]>(channelsJson);
+                            }
+                            catch
+                            {
+                                channels = new string[0];
+                            }
+                        }
+                    }
+                    else
+                    {
+                        channels = new string[0];
+                    }
+
+                    string[] events;
+                    if (data.TryGetValue("events", out var eventsObj))
+                    {
+                        if (eventsObj is JsonElement eventsElement)
+                        {
+                            events = JsonSerializer.Deserialize<string[]>(eventsElement.GetRawText());
+                        }
+                        else if (eventsObj is string[] eventsArray)
+                        {
+                            events = eventsArray;
+                        }
+                        else
+                        {
+                            // Try to parse as JSON array from object
+                            try
+                            {
+                                var eventsJson = JsonSerializer.Serialize(eventsObj);
+                                events = JsonSerializer.Deserialize<string[]>(eventsJson);
+                            }
+                            catch
+                            {
+                                events = new string[0];
+                            }
+                        }
+                    }
+                    else
+                    {
+                        events = new string[0];
+                    }
                     
                     // Timestamp can be either a string (ISO format) or a number
                     long timestamp = 0;
@@ -423,9 +476,35 @@ namespace {{ spec.title | caseUcfirst }}
                         }
                     }
                     
-                    var payload = data.TryGetValue("payload", out var payloadObj) && payloadObj is JsonElement payloadElement ? 
-                        JsonSerializer.Deserialize<Dictionary<string, object>>(payloadElement.GetRawText(), Client.DeserializerOptions) : 
-                        (payloadObj is Dictionary<string, object> payloadDict ? payloadDict : new Dictionary<string, object>());
+                    Dictionary<string, object> payload;
+                    if (data.TryGetValue("payload", out var payloadObj))
+                    {
+                        if (payloadObj is JsonElement payloadElement)
+                        {
+                            payload = JsonSerializer.Deserialize<Dictionary<string, object>>(payloadElement.GetRawText(), Client.DeserializerOptions);
+                        }
+                        else if (payloadObj is Dictionary<string, object> payloadDict)
+                        {
+                            payload = payloadDict;
+                        }
+                        else
+                        {
+                            // Try to parse as JSON object
+                            try
+                            {
+                                var payloadJson = JsonSerializer.Serialize(payloadObj);
+                                payload = JsonSerializer.Deserialize<Dictionary<string, object>>(payloadJson, Client.DeserializerOptions);
+                            }
+                            catch
+                            {
+                                payload = new Dictionary<string, object>();
+                            }
+                        }
+                    }
+                    else
+                    {
+                        payload = new Dictionary<string, object>();
+                    }
 
                     Debug.Log($"[Realtime] Parsed channels: [{string.Join(", ", channels)}]");
                     Debug.Log($"[Realtime] Parsed events: [{string.Join(", ", events)}]");
