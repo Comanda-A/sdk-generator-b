@@ -164,6 +164,9 @@ namespace {{ spec.title | caseUcfirst }}
                 await _webSocket.Connect();
                 Debug.Log("[Realtime] Connect call completed");
                 _reconnectAttempts = 0;
+                
+                // Start message processing loop for Unity
+                StartMessageProcessing();
             }
             catch (Exception ex)
             {
@@ -410,6 +413,39 @@ namespace {{ spec.title | caseUcfirst }}
             _heartbeatTokenSource?.Cancel();
             _heartbeatTokenSource?.Dispose();
             _heartbeatTokenSource = null;
+        }
+
+        private void StartMessageProcessing()
+        {
+            // Start a loop to process WebSocket messages in Unity
+            UniTask.Create(async () =>
+            {
+                try
+                {
+                    while (_webSocket != null && (_webSocket.State == WebSocketState.Open || _webSocket.State == WebSocketState.Connecting))
+                    {
+                        try
+                        {
+                            // Process WebSocket message queue
+                            #if !UNITY_WEBGL || UNITY_EDITOR
+                            _webSocket.DispatchMessageQueue();
+                            #endif
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.LogError($"[Realtime] Error processing message queue: {ex.Message}");
+                        }
+                        
+                        await UniTask.Delay(16); // ~60fps
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[Realtime] Message processing loop error: {ex.Message}");
+                }
+                
+                Debug.Log("[Realtime] Message processing loop ended");
+            });
         }
 
         private void Retry()
