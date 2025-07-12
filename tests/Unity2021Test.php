@@ -32,6 +32,7 @@ class Unity2021Test extends Base
         ...Base::FOO_RESPONSES,
         ...Base::BAR_RESPONSES,
         ...Base::GENERAL_RESPONSES,
+        ...Base::DOWNLOAD_RESPONSES,
         ...Base::UPLOAD_RESPONSES,
         ...Base::ENUM_RESPONSES,
         ...Base::EXCEPTION_RESPONSES,
