@@ -278,10 +278,26 @@ namespace {{ spec.title | caseUcfirst }}
             Debug.Log("[Realtime] Received 'connected' message");
             
             // Handle authentication if no user is present
-            if (response.TryGetValue("data", out var dataObj) && dataObj is Dictionary<string, object> data)
+            if (response.TryGetValue("data", out var dataObj))
             {
+                Dictionary<string, object> data;
+                if (dataObj is JsonElement dataElement)
+                {
+                    data = JsonSerializer.Deserialize<Dictionary<string, object>>(dataElement.GetRawText(), Client.DeserializerOptions);
+                }
+                else if (dataObj is Dictionary<string, object> dict)
+                {
+                    data = dict;
+                }
+                else
+                {
+                    Debug.LogWarning("[Realtime] Unexpected data type in connected message");
+                    return;
+                }
+
                 var hasUser = data.TryGetValue("user", out var userObj) && 
-                             userObj is Dictionary<string, object> user && user.Count > 0;
+                             userObj != null && 
+                             (userObj is JsonElement userElement ? !userElement.ValueKind.Equals(JsonValueKind.Null) : true);
                              
                 Debug.Log($"[Realtime] Has user: {hasUser}");
                              
@@ -291,9 +307,6 @@ namespace {{ spec.title | caseUcfirst }}
                     SendFallbackAuthentication();
                 }
             }
-            
-            // Start heartbeat after successful connection (moved from OnWebSocketOpen)
-            // StartHeartbeat(); // Already called in OnWebSocketOpen
         }
 
         private void SendFallbackAuthentication()
@@ -315,10 +328,25 @@ namespace {{ spec.title | caseUcfirst }}
 
         private void HandleErrorMessage(Dictionary<string, object> response)
         {
-            if (response.TryGetValue("data", out var dataObj) && dataObj is Dictionary<string, object> data)
+            if (response.TryGetValue("data", out var dataObj))
             {
+                Dictionary<string, object> data;
+                if (dataObj is JsonElement dataElement)
+                {
+                    data = JsonSerializer.Deserialize<Dictionary<string, object>>(dataElement.GetRawText(), Client.DeserializerOptions);
+                }
+                else if (dataObj is Dictionary<string, object> dict)
+                {
+                    data = dict;
+                }
+                else
+                {
+                    Debug.LogWarning("[Realtime] Unexpected data type in error message");
+                    return;
+                }
+
                 var message = data.TryGetValue("message", out var msgObj) ? msgObj?.ToString() : "Unknown realtime error";
-                var code = data.TryGetValue("code", out var codeObj) ? Convert.ToInt32(codeObj) : 0;
+                var code = data.TryGetValue("code", out var codeObj) ? Convert.ToInt32(codeObj.ToString()) : 0;
                 
                 OnError?.Invoke(new {{ spec.title | caseUcfirst }}Exception(message, code));
             }
@@ -326,11 +354,29 @@ namespace {{ spec.title | caseUcfirst }}
 
         private void HandleRealtimeEvent(Dictionary<string, object> response)
         {
+            Debug.Log("[Realtime] HandleRealtimeEvent called");
             try
             {
-                if (response.TryGetValue("data", out var dataObj) && dataObj is JsonElement dataElement)
+                if (response.TryGetValue("data", out var dataObj))
                 {
-                    var data = JsonSerializer.Deserialize<Dictionary<string, object>>(dataElement.GetRawText(), Client.DeserializerOptions);
+                    Debug.Log($"[Realtime] Data object type: {dataObj.GetType()}");
+                    
+                    Dictionary<string, object> data;
+                    if (dataObj is JsonElement dataElement)
+                    {
+                        Debug.Log("[Realtime] Data is JsonElement, deserializing...");
+                        data = JsonSerializer.Deserialize<Dictionary<string, object>>(dataElement.GetRawText(), Client.DeserializerOptions);
+                    }
+                    else if (dataObj is Dictionary<string, object> dict)
+                    {
+                        Debug.Log("[Realtime] Data is already Dictionary");
+                        data = dict;
+                    }
+                    else
+                    {
+                        Debug.LogError($"[Realtime] Unexpected data type: {dataObj.GetType()}");
+                        return;
+                    }
                     
                     var channels = data.TryGetValue("channels", out var channelsObj) && channelsObj is JsonElement channelsElement ? 
                         JsonSerializer.Deserialize<string[]>(channelsElement.GetRawText()) : new string[0];
@@ -341,6 +387,8 @@ namespace {{ spec.title | caseUcfirst }}
                     var payload = data.TryGetValue("payload", out var payloadObj) && payloadObj is JsonElement payloadElement ? 
                         JsonSerializer.Deserialize<Dictionary<string, object>>(payloadElement.GetRawText(), Client.DeserializerOptions) : new Dictionary<string, object>();
 
+                    Debug.Log($"[Realtime] Parsed channels: [{string.Join(", ", channels)}]");
+                    Debug.Log($"[Realtime] Parsed events: [{string.Join(", ", events)}]");
                     Debug.Log($"[Realtime] Parsed payload: {JsonSerializer.Serialize(payload)}");
 
                     var eventResponse = new RealtimeResponseEvent<Dictionary<string, object>>
@@ -351,10 +399,13 @@ namespace {{ spec.title | caseUcfirst }}
                         Payload = payload
                     };
 
+                    Debug.Log($"[Realtime] Current subscriptions count: {_subscriptions.Count}");
+                    
                     // Create a copy of subscriptions to avoid collection modification issues
                     var subscriptionsCopy = _subscriptions.Values.ToArray();
                     foreach (var subscription in subscriptionsCopy)
                     {
+                        Debug.Log($"[Realtime] Checking subscription channels: [{string.Join(", ", subscription.Channels)}]");
                         foreach (var channel in channels)
                         {
                             if (subscription.Channels.Contains(channel))
@@ -366,10 +417,15 @@ namespace {{ spec.title | caseUcfirst }}
                         }
                     }
                 }
+                else
+                {
+                    Debug.LogWarning("[Realtime] No 'data' field in event message");
+                }
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[Realtime] HandleRealtimeEvent error: {ex.Message}");
+                Debug.LogError($"[Realtime] HandleRealtimeEvent stack trace: {ex.StackTrace}");
                 OnError?.Invoke(ex);
             }
         }
