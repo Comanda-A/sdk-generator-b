@@ -37,6 +37,8 @@ namespace AppwriteTests
         
         private async Task RunAsyncTest()
         {
+            GameObject realtimeObject = null;
+            
             var client = new Client()
                 .SetProject("123456")
                 .AddHeader("Origin", "http://localhost")
@@ -49,7 +51,11 @@ namespace AppwriteTests
             client.SetProject("console");
             client.SetEndPointRealtime("wss://cloud.appwrite.io/v1");
             
-            var realtime = new Realtime(client);
+            // Create GameObject for Realtime MonoBehaviour
+            realtimeObject = new GameObject("RealtimeTest");
+            var realtime = realtimeObject.AddComponent<Realtime>();
+            realtime.Initialize(client);
+            
             string realtimeResponse = "No realtime message received within timeout";            
             RealtimeSubscription subscription = null;
             subscription = realtime.Subscribe(new string[] { "tests" }, (eventData) => 
@@ -229,6 +235,12 @@ namespace AppwriteTests
 
             mock = await general.Headers();
             Debug.Log(mock.Result);
+            
+            // Cleanup Realtime GameObject
+            if (realtimeObject != null)
+            {
+                Object.DestroyImmediate(realtimeObject);
+            }
             
         }
     }

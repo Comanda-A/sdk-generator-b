@@ -43,18 +43,18 @@ namespace {{ spec.title | caseUcfirst }}
     /// <summary>
     /// Realtime connection interface for Unity WebSocket communication
     /// </summary>
-    public class Realtime
+    public class Realtime : MonoBehaviour
     {
-        private readonly Client _client;
+        private Client _client;
         private WebSocket _webSocket;
-        private readonly HashSet<string> _channels;
-        private readonly Dictionary<int, RealtimeSubscription> _subscriptions;
+        private readonly HashSet<string> _channels = new();
+        private readonly Dictionary<int, RealtimeSubscription> _subscriptions = new();
         private int _subscriptionCounter;
         private bool _reconnect = true;
-        private int _reconnectAttempts = 0;
+        private int _reconnectAttempts;
         private const int MaxReconnectAttempts = 100;
         private CancellationTokenSource _cancellationTokenSource;
-        private bool _creatingSocket = false;
+        private bool _creatingSocket;
         private string _lastUrl;
         private CancellationTokenSource _heartbeatTokenSource;
 
@@ -63,12 +63,25 @@ namespace {{ spec.title | caseUcfirst }}
         public event Action OnDisconnected;
         public event Action<Exception> OnError;
 
-        public Realtime(Client client)
+        /// <summary>
+        /// Initialize Realtime with a client
+        /// </summary>
+        public void Initialize(Client client)
         {
             _client = client;
-            _channels = new HashSet<string>();
-            _subscriptions = new Dictionary<int, RealtimeSubscription>();
-            _subscriptionCounter = 0;
+        }
+
+        /// <summary>
+        /// Unity Update method for processing WebSocket messages
+        /// </summary>
+        void Update()
+        {
+            #if !UNITY_WEBGL || UNITY_EDITOR
+            if (_webSocket != null)
+            {
+                _webSocket.DispatchMessageQueue();
+            }
+            #endif
         }
 
         /// <summary>
@@ -164,14 +177,6 @@ namespace {{ spec.title | caseUcfirst }}
                 await _webSocket.Connect();
                 Debug.Log("[Realtime] Connect call completed");
                 _reconnectAttempts = 0;
-                
-                // Immediately process any pending messages
-                #if !UNITY_WEBGL || UNITY_EDITOR
-                _webSocket.DispatchMessageQueue();
-                #endif
-                
-                // Start message processing loop for Unity
-                StartMessageProcessing();
             }
             catch (Exception ex)
             {
@@ -420,40 +425,6 @@ namespace {{ spec.title | caseUcfirst }}
             _heartbeatTokenSource = null;
         }
 
-        private void StartMessageProcessing()
-        {
-            // Start a loop to process WebSocket messages in Unity
-            UniTask.Create(async () =>
-            {
-                try
-                {
-                    Debug.Log("[Realtime] Starting message processing loop");
-                    while (_webSocket != null && (_webSocket.State == WebSocketState.Open || _webSocket.State == WebSocketState.Connecting))
-                    {
-                        try
-                        {
-                            // Process WebSocket message queue - this is CRITICAL for Unity!
-                            #if !UNITY_WEBGL || UNITY_EDITOR
-                            _webSocket.DispatchMessageQueue();
-                            #endif
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.LogError($"[Realtime] Error processing message queue: {ex.Message}");
-                        }
-                        
-                        await UniTask.Delay(16); // ~60fps
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogError($"[Realtime] Message processing loop error: {ex.Message}");
-                }
-                
-                Debug.Log("[Realtime] Message processing loop ended");
-            });
-        }
-
         private void Retry()
         {
             if (!_reconnect) return;
@@ -527,11 +498,11 @@ namespace {{ spec.title | caseUcfirst }}
         }
         
         /// <summary>
-        /// Dispose method for proper cleanup
+        /// Unity OnDestroy method for cleanup
         /// </summary>
-        public void Dispose()
+        private async void OnDestroy()
         {
-            UniTask.Create(async () => await Disconnect()).Forget();
+            await Disconnect();
         }
     }
 }
